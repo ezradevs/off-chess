@@ -1,0 +1,13 @@
+Fianchetto1234,0
+Fianchettodatbishop,1
+Theopoo,0
+DanTheChessMan,0
+q,4
+test,1
+mankey,1
+z,3
+v,3
+Banana,0
+BUTT_LOTION,1
+Chocolate,1
+Zippy,1
