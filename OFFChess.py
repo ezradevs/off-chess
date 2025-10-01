@@ -1,8 +1,17 @@
+"""Project Overview:
+Stack: Single-file Python 3 console app built on the standard library (`time`, `os`, `datetime`) with plain-text data files (Login.txt, Wins.txt, Loss.txt, Draw.txt, Elo.txt, GameHistory.txt) providing persistence.
+Flow: The program launches an ASCII-art animation, lands on a main menu (`choices()`), and branches into gameplay, tutorials, account management, or leaderboard views based on user input.
+Gameplay: `setboard()` seeds an 8x8 board stored as coordinate-keyed dict entries, `getmoves()`/`checktest()` compute legal chess moves (incl. castling, en passant, promotion), and `news()` applies moves, enforces check/mate logic, logs history, and rotates turns.
+Accounts & Stats: `login()`/`signup()` manage credentials while Elo, win/loss/draw tallies, game logs, and replays are read/written via the text files; `account_view()`, `database()`, and `halloffame()` surface this information for players.
+Overall: OFF Chess delivers an offline two-player chess experience with educational material and simple persistence, all orchestrated through command-line prompts and global state.
+"""
+
 import time
 import os
 from datetime import date
-#importing relevant packages
+# Importing relevant packages
 def setboard():
+    # Initialise the chessboard dictionary with string coordinates -> piece codes
     global board
     board = {
         "12":"wP",
@@ -43,6 +52,7 @@ def setboard():
 #Here we are initialising the board, each square is a key value pair of two numbers from 1-8. Squares with pieces are defined in this dictionary, as thier colour and then piece. Any time a piece moves, its old square is deleted, and a new definition is added for the square its moved to. Undefined squares are considered unoccupied
 
 filecondict = {
+    # Maps numeric file indices to algebraic file letters for display/logging
     1:"a",
     2:"b",
     3:"c",
@@ -54,6 +64,7 @@ filecondict = {
 }
 
 fileinputdict = {
+    # Converts algebraic file letters back to numeric indices for internal lookups
     "a": 1,
     "b": 2,
     "c": 3,
@@ -67,6 +78,7 @@ fileinputdict = {
 #These are used in a variety of features to translte between the letters on the board and the numbers used when computing moves
 
 ascii = {
+    # Unicode glyphs used when rendering the board in the terminal
     "bR": "♜",
     "bN": "♞",
     "bB": "♝",
@@ -81,9 +93,10 @@ ascii = {
     "wK": "♔",
 }
 
-#this ascii is used to change the pieces into vieweable icons for display
+#This ascii is used to change the pieces into vieweable icons for display
 
 def print_chessboard(board):
+    # Render the current board state using rank/file axes and unicode pieces
     for rank in range(8, 0, -1):
         print(rank, end=" | ")
         for file in range(1, 9):
@@ -97,6 +110,7 @@ def print_chessboard(board):
 #This function prints every square in the board, and prints pieces on it when it finds a piece, otherwise leaves a dot to denote a blank piece.
 
 def getmoves(checks,dontAddKing):
+    # Build the legal move list for the currently selected piece, optionally reusing state during check evaluation
     global possible_moves
     global enpassant_moves
     global check_moves
@@ -123,6 +137,7 @@ def getmoves(checks,dontAddKing):
 
 
     if checks == False:
+        # Fresh move generation: reset tracking lists and remember original square
         check_moves = []
         K_moves = []
         secondValueList = []
@@ -131,11 +146,13 @@ def getmoves(checks,dontAddKing):
     possible_moves = []  
     enpassant_moves = []
     if food == 'R':
+        # Rook: scan vertically and horizontally until blocked by own piece or capture
         newranks = 0
         newfile = 0
 
         for i in range(7):
             i += 1
+            # Step up the file increasing rank until collision
             newranks = int(rank) + i
             if f'{file}{newranks}' in board:
                 collisioncol = board[f'{file}{newranks}']
@@ -154,6 +171,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Step down the file decreasing rank until collision
             newranks = int(rank) - i
             if f'{file}{newranks}' in board:
                 collisioncol = board[f'{file}{newranks}']
@@ -173,6 +191,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # March right along the rank until we hit a piece or board edge
             newfile = int(file) + i
             if f'{newfile}{rank}' in board:
                 collisioncol = board[f'{newfile}{rank}']
@@ -193,6 +212,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # March left along the rank until we hit a piece or board edge
             newfile = int(file) - i
             if f'{newfile}{rank}' in board:
                 collisioncol = board[f'{newfile}{rank}']
@@ -211,11 +231,13 @@ def getmoves(checks,dontAddKing):
                 check_moves.append((f'{filecondict[int(file)]}{str(rank)}',f'{filecondict[int(newfile)]}{str(rank)}'))
 
     if food == 'B':
+        # Bishop: explore diagonal rays in all four directions
         newfile = 0
         newranks = 0
 
         for i in range(7):
             i += 1
+            # Northeast diagonal sweep
             newfile = int(file) + i
             newranks = int(rank) + i
             if f'{newfile}{newranks}' in board:
@@ -233,6 +255,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Southeast diagonal sweep
             newfile = int(file) + i
             newranks = int(rank) - i
             if f'{newfile}{newranks}' in board:
@@ -251,6 +274,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Northwest diagonal sweep
             newfile = int(file) - i
             newranks = int(rank) + i
             if f'{newfile}{newranks}' in board:
@@ -269,6 +293,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Southwest diagonal sweep
             newfile = int(file) - i
             newranks = int(rank) - i
             if f'{newfile}{newranks}' in board:
@@ -286,10 +311,12 @@ def getmoves(checks,dontAddKing):
 
 
     if food == "Q":
+        # Queen: combine rook and bishop directional scans
         newfile = 0
         newranks = 0
         for i in range(7):
             i += 1
+            # Reuse rook logic: push forward ranks
             newranks = int(rank) + i
             if f'{file}{newranks}' in board:
                 collisioncol = board[f'{file}{newranks}']
@@ -307,6 +334,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Reuse rook logic: pull backward ranks
             newranks = int(rank) - i
             if f'{file}{newranks}' in board:
                 collisioncol = board[f'{file}{newranks}']
@@ -324,6 +352,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Horizontal scan moving right
             newfile = int(file) + i
             if f'{newfile}{rank}' in board:
                 collisioncol = board[f'{newfile}{rank}']
@@ -340,6 +369,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Horizontal scan moving left
             newfile = int(file) - i
             if f'{newfile}{rank}' in board:
                 collisioncol = board[f'{newfile}{rank}']
@@ -357,6 +387,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Diagonal sweep northeast
             newfile = int(file) + i
             newranks = int(rank) + i
             if f'{newfile}{newranks}' in board:
@@ -375,6 +406,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Diagonal sweep southeast
             newfile = int(file) + i
             newranks = int(rank) - i
             if f'{newfile}{newranks}' in board:
@@ -392,6 +424,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Diagonal sweep northwest
             newfile = int(file) - i
             newranks = int(rank) + i
             if f'{newfile}{newranks}' in board:
@@ -410,6 +443,7 @@ def getmoves(checks,dontAddKing):
 
         for i in range(7):
             i += 1
+            # Diagonal sweep southwest
             newfile = int(file) - i
             newranks = int(rank) - i
             if f'{newfile}{newranks}' in board:
@@ -427,12 +461,14 @@ def getmoves(checks,dontAddKing):
 
 
     if food == "P":
+        # Pawn: handle forward pushes, captures, initial double steps, and en passant for both colors
 
         if x[0] == 'w':
             newranks = 0
             newfile = 0
 
             if rank == "2":
+                # Starting rank: allow single or double push if clear
                 for i in range(2):
                     i += 1
                     newranks = int(rank) + i
@@ -452,6 +488,7 @@ def getmoves(checks,dontAddKing):
             newfile = int(file)
             newranks += 1
             newfile += 1
+            # Diagonal capture to the right if an enemy piece exists
             if f'{newfile}{newranks}' in board:
                 pawntake = board[f'{newfile}{newranks}']
                 if pawntake[0] != x[0]:
@@ -462,6 +499,7 @@ def getmoves(checks,dontAddKing):
             newfile = int(file)
             newranks += 1
             newfile -= 1
+            # Diagonal capture to the left if an enemy piece exists
             if f'{newfile}{newranks}' in board:
                 pawntake = board[f'{newfile}{newranks}']
                 if pawntake[0] != x[0]:
@@ -472,6 +510,7 @@ def getmoves(checks,dontAddKing):
                 newranks = int(rank)
                 newfile = int(file)
                 newfile -= 1
+                # En passant capture to the left for white pawns
                 if f'{newfile}{newranks}' in board:
                     pawntake = board[f'{newfile}{newranks}']
                     if (pawntake[0] != x[0]) and pawntake[-1] == 'P':
@@ -482,6 +521,7 @@ def getmoves(checks,dontAddKing):
                 newranks = int(rank)
                 newfile = int(file)
                 newfile += 1
+                # En passant capture to the right for white pawns
                 if f'{newfile}{newranks}' in board:
                     pawntake = board[f'{newfile}{newranks}']
                     if (pawntake[0] != x[0]) and pawntake[-1] == 'P':
@@ -492,10 +532,11 @@ def getmoves(checks,dontAddKing):
 
 
         elif x[0] == 'b':
-            
+
             newranks = 0
             newfile = 0
             if str(rank) == "7":
+                # Black starting rank: allow single or double push if clear
                 for i in range(2):
                     i += 1
                     newranks = int(rank) - i
@@ -515,6 +556,7 @@ def getmoves(checks,dontAddKing):
             newfile = int(file)
             newranks -= 1
             newfile += 1
+            # Diagonal capture to the right for black (toward smaller ranks)
             if f'{newfile}{newranks}' in board:
                 pawntake = board[f'{newfile}{newranks}']
                 if pawntake[0] != x[0]:
@@ -525,6 +567,7 @@ def getmoves(checks,dontAddKing):
             newfile = int(file)
             newranks -= 1
             newfile -= 1
+            # Diagonal capture to the left for black
             if f'{newfile}{newranks}' in board:
                 pawntake = board[f'{newfile}{newranks}']
                 if pawntake[0] != x[0]:
@@ -535,6 +578,7 @@ def getmoves(checks,dontAddKing):
                 newranks = int(rank)
                 newfile = int(file)
                 newfile -= 1
+                # En passant capture to the left for black pawns
                 if f'{newfile}{newranks}' in board:
                     pawntake = board[f'{newfile}{newranks}']
                     if (pawntake[0] != x[0]) and pawntake[-1] == 'P':
@@ -545,6 +589,7 @@ def getmoves(checks,dontAddKing):
                 newranks = int(rank)
                 newfile = int(file)
                 newfile += 1
+                # En passant capture to the right for black pawns
                 if f'{newfile}{newranks}' in board:
                     pawntake = board[f'{newfile}{newranks}']
                     if (pawntake[0] != x[0]) and pawntake[-1] == 'P':
@@ -552,6 +597,7 @@ def getmoves(checks,dontAddKing):
                         enpassant_moves.append(f'{filecondict[int(newfile)]}{str(newranks)}')
  
     if food == "N":
+        # Knight: test all eight L-shaped jumps, ignoring blocking pieces
         newfile = 0
         newranks = 0
         newfile = int(file) + 2
@@ -619,6 +665,7 @@ def getmoves(checks,dontAddKing):
     if food == "K":
 
         if x[0] == 'w':
+            # White king: determine castling availability before testing standard moves
             newfile = 0
             newranks = 0
             if f'{file}{rank}' == '51' and wkingmoved == False:
@@ -637,6 +684,7 @@ def getmoves(checks,dontAddKing):
         if x[0] == 'b':
             newfile = 0
             newranks = 0
+            # Black king: mirror the castling eligibility checks
             if f'{file}{rank}' == '58' and bkingmoved == False:
                 newfile = int(file) + 1
                 if f'{newfile}{rank}' not in board:
@@ -654,6 +702,7 @@ def getmoves(checks,dontAddKing):
         newfile = 0
         newranks = 0
         newranks = int(rank) + 1
+        # King can step one square up if not blocked by own piece
         if newranks < 9 and board.get(f'{file}{newranks}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(file)]}{str(newranks)}')
             if dontAddKing == False:
@@ -664,6 +713,7 @@ def getmoves(checks,dontAddKing):
         newfile = 0
         newranks = 0
         newranks = int(rank) - 1
+        # King can step one square down if target not friendly
         if newranks > 0 and board.get(f'{file}{newranks}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(file)]}{str(newranks)}')
             if dontAddKing == False:
@@ -674,6 +724,7 @@ def getmoves(checks,dontAddKing):
         newfile = 0
         newranks = 0
         newfile = int(file) + 1
+        # Check the square to the right of the king
         if newfile < 9 and board.get(f'{newfile}{rank}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(newfile)]}{str(rank)}')
             if dontAddKing == False:
@@ -685,6 +736,7 @@ def getmoves(checks,dontAddKing):
         newfile = 0
         newranks = 0
         newfile = int(file) - 1
+        # Check the square to the left of the king
         if newfile > 0 and board.get(f'{newfile}{rank}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(newfile)]}{str(rank)}')
             if dontAddKing == False:
@@ -697,6 +749,7 @@ def getmoves(checks,dontAddKing):
         newranks = 0
         newfile = int(file) + 1
         newranks = int(rank) + 1
+        # Up-right diagonal
         if newfile < 9 and newranks < 9 and board.get(f'{newfile}{newranks}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(newfile)]}{str(newranks)}')
             if dontAddKing == False:
@@ -709,6 +762,7 @@ def getmoves(checks,dontAddKing):
         newranks = 0
         newfile = int(file) + 1
         newranks = int(rank) - 1
+        # Down-right diagonal
         if newfile < 9 and newranks > 0 and board.get(f'{newfile}{newranks}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(newfile)]}{str(newranks)}')
             if dontAddKing == False:
@@ -721,6 +775,7 @@ def getmoves(checks,dontAddKing):
         newranks = 0
         newfile = int(file) - 1
         newranks = int(rank) + 1
+        # Up-left diagonal
         if newfile > 0 and newranks < 9 and board.get(f'{newfile}{newranks}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(newfile)]}{str(newranks)}')
             if dontAddKing == False:
@@ -733,6 +788,7 @@ def getmoves(checks,dontAddKing):
         newranks = 0
         newfile = int(file) - 1
         newranks = int(rank) - 1
+        # Down-left diagonal
         if newfile > 0 and newranks > 0 and board.get(f'{newfile}{newranks}',"1")[0] != x[0]:
             possible_moves.append(f'{filecondict[int(newfile)]}{str(newranks)}')
             if dontAddKing == False:
@@ -743,10 +799,12 @@ def getmoves(checks,dontAddKing):
 
     if checks == False:
         if possible_moves == []:
+            # No legal moves available for the selected piece; force player to choose again
             print("Sorry, this piece cannot move anywhere, please choose another one")
             Pieceinput()
 
 def GetElo(Ra,Rb,wresult,bresult):
+    # Apply the Elo rating formula to both players and persist the new results
     global changedscore
     global word
     global oldstuff
@@ -763,6 +821,7 @@ def GetElo(Ra,Rb,wresult,bresult):
     Qa = 10**(Ra/400)
     Qb = 10**(Rb/400)
     Ea = Qa/(Qa + Qb)
+    # Standard Elo expectation + update with 32 as the K-factor
     NewRa = Ra + 32*(Sa - Ea)
     oldstuff = str(int(Ra))
     changedscore = str(int(NewRa))
@@ -788,6 +847,7 @@ def GetElo(Ra,Rb,wresult,bresult):
     write("Elo.txt")
 
 def Addwins(dox): #This is generic and recieves designated import
+    # Increment the appropriate stat counter (wins/losses/draws) for the active `word`
     global oldstuff
     global changedscore
     with open(dox, "r") as fp: #Open predetermined txt file
@@ -801,6 +861,7 @@ def Addwins(dox): #This is generic and recieves designated import
                     write(dox)
 
 def write(dox): #A generic write function
+    # Replace the old stat value with the new value inside the given document
     global changedscore
     global oldstuff
     with open(dox, 'r') as file: #Open the specified document
@@ -814,6 +875,7 @@ def write(dox): #A generic write function
 
 def checktest(chm):
     #At the end of your turn, just before a piece move is submitted, check if the king is in check, by running through all the pieces
+    # When `chm` is True we gather enemy attacks; when False we gather friendly attacks for validation
     global check_moves
     global selfking
     global K_moves
@@ -825,6 +887,7 @@ def checktest(chm):
     K_moves = []
 
     for index,sqr in enumerate(board):
+        # Iterate over every occupied square, treating each piece as potential attacker or king candidate
         global food
         global name
         global file
@@ -837,6 +900,7 @@ def checktest(chm):
 
 
         if x[-1] == "R":
+            # Evaluate rook moves depending on whose attacks we are gathering
             food = "R"
             if ((whom == True and x[0] == 'b') or (whom == False and x[0] == 'w')):
                 if chm == False:
@@ -846,6 +910,7 @@ def checktest(chm):
                     getmoves(True,False)
 
         elif x[-1] == "B":
+            # Evaluate bishop moves
             food = "B"
 
             if ((whom == True and x[0] == 'b') or (whom == False and x[0] == 'w')):
@@ -856,6 +921,7 @@ def checktest(chm):
                     getmoves(True,False)
 
         elif x[-1] == "Q":
+            # Evaluate queen moves
             food = "Q"
             if ((whom == True and x[0] == 'b') or (whom == False and x[0] == 'w')):
                 if chm == False:
@@ -865,6 +931,7 @@ def checktest(chm):
                     getmoves(True,False)
 
         elif x[-1] == "P":
+            # Evaluate pawn moves, including en passant threats
             food = 'P'
             if ((whom == True and x[0] == 'b') or (whom == False and x[0] == 'w')):
                 if chm == False:
@@ -874,6 +941,7 @@ def checktest(chm):
                     getmoves(True,False)
 
         elif x[-1] == "N":
+            # Evaluate knight moves
             food = 'N'
             if ((whom == True and x[0] == 'b') or (whom == False and x[0] == 'w')):
                 if chm == False:
@@ -883,6 +951,7 @@ def checktest(chm):
                     getmoves(True,False)
                     
         elif x[-1] == "K":
+            # Track the friendly king's square and gather opposing king moves
             food = "K"
             if ((whom == True and x[0] == 'w') or (whom == False and x[0] == 'b')):
                 selfking = f'{file}{rank}'
@@ -895,9 +964,11 @@ def checktest(chm):
 def mate():
 
     global ismate
+    # Assume mate until we find a legal move that escapes check
     ismate = True
     checktest(True) #Get list of own colour pieces possible moves
     for a in check_moves:
+        # Try every non-king move and see if any remove the king from danger
         secondValueList.append(a[-1])
         firstValueList.append(a[0])
         originalPiece = 0
@@ -922,6 +993,7 @@ def mate():
 
     checktest(True)
     for b in K_moves: #loop For all the moves in the list
+        # Explicitly test each king move against future attacks
         originalPiece = 0
         move = f'{fileinputdict[b[0]]}{b[-1]}' #figure out each move in the list
         if move in board:
@@ -941,20 +1013,24 @@ def mate():
             board[move] = originalPiece
 
 def start():
+    # Increment the global turn counter and announce whose move it is
     global turns
     turns += 1
     global whom
     if turns % 2 != 0: #Whites move
+        # Odd-numbered turns belong to White
         whom = True
         print(f"It is now white ({p1name})'s move")
         time.sleep(1)
     else:
+        # Even-numbered turns belong to Black
         whom = False
         print(f"It is now black ({p2name})'s move")
         time.sleep(1)
     Pieceinput()
 
 def Pieceinput():  
+    # Prompt the active player for a piece to move, validate that choice, and seed move generation
     global food
     global name
     global piece  
@@ -963,9 +1039,11 @@ def Pieceinput():
     food = 0
     piece = 0
     checktest(False)
+    # Populate attack maps to identify checks and current legal responses
     for a in check_moves:
             secondValueList.append(a[-1])
     if f'{filecondict[int(selfking[0])]}{selfking[-1]}' in secondValueList:
+        # If the king's square is attacked, determine whether the position is checkmate
         mate()
         if ismate == True:
             print("CHECKMATE")
@@ -1017,6 +1095,7 @@ def Pieceinput():
     if f'{filecondict[int(selfking[0])]}{selfking[-1]}' not in secondValueList:
 
         mate()
+        # When the king is safe, we still check for stalemate (no legal moves)
         if ismate == True:
             print("STALEMATE")
             time.sleep(1)
@@ -1039,7 +1118,9 @@ def Pieceinput():
             choices()                
 
     piece = input("Name the square of the piece you wish to move; ")
+    # Allow text commands for draw or resign before validating coordinates
     if piece.lower() == 'draw':
+        # Interpret special command to offer a draw to the opponent
         if whom == True:
             print(f"{p1name} has offered a draw")
             time.sleep(1)
@@ -1079,6 +1160,7 @@ def Pieceinput():
             Pieceinput()
     
     if piece.lower() == 'resign':
+        # Resignation flow grants victory to the opponent after confirmation
         die = input("Are you sure you wish to resign (Y or N)? ")
         if die.upper() == 'N':
             Pieceinput()
@@ -1124,10 +1206,12 @@ def Pieceinput():
             Pieceinput()
             choices()
     if ((piece.lower()[0] or piece.lower()[1]) not in fileinputdict) or len(piece) != 2 or f'{fileinputdict[piece[0]]}{piece[-1]}' not in board:
+        # Reject malformed input or empty squares
         print("Please enter a valid piece")
         Pieceinput()
     x = board.get(f'{fileinputdict[piece[0]]}{piece[1]}')
     if (whom == True and x[0] == 'w') or (whom == False and x[0] == 'b'):
+        # Ensure the chosen piece belongs to the current player
         if x[-1] == "R":
             food = "R"
             name = "Rook"
@@ -1156,15 +1240,18 @@ def Pieceinput():
         global rank
         file = fileinputdict[piece[0]] #First number is file (a file, b file, c file etc)
         rank = piece[-1] #Second number is rank (4th rank, 5th rank, 6th rank etc)
+        # Calculate possible moves for the selected piece
         getmoves(False,False)
 
     else:
         print('Wrong colour piece!')
         time.sleep(1)
         Pieceinput()       
+    # Pass control to the destination selection prompt
     news()
 
 def promotion():
+    # Convert a pawn that reached the back rank into the piece chosen by the player
     global ogx
     global prom
     global prop
@@ -1182,13 +1269,16 @@ def promotion():
         promotion()
 
 def news():
+    # Handle the target square entry, enforce special move rules, and finalize the move
     global prom 
     prom = False
     new = input("What square do you wish to move this piece? ")
     time.sleep(1)
     if new.lower() == "cancel":
+        # Give players a way to re-select a piece
         Pieceinput()
     elif ((new.lower()[0] or new.lower()[1]) not in fileinputdict) or len(new) != 2:
+        # Guard against malformed destination coordinates
         print("Unreadable syntax, please re-enter the square you would like in Algebraic notation, or else, enter cancel")
         news()
 
@@ -1200,6 +1290,7 @@ def news():
         global wkrookmoved
         global wqrookmoved
         if castlewk == True and f'{fileinputdict[new[0]]}{new[-1]}' == '71' and wkrookmoved == False:
+            # Execute white king-side castling after verifying path is not in check
             checktest(False)
             for a in check_moves:
                 secondValueList.append(a[-1])
@@ -1243,6 +1334,7 @@ def news():
             start()
 
         if castlewq == True and f'{fileinputdict[new[0]]}{new[-1]}' == '31' and wqrookmoved == False:
+            # Execute white queen-side castling with safety checks
             checktest(False)
             for a in check_moves:
                 secondValueList.append(a[-1])
@@ -1286,6 +1378,7 @@ def news():
             start()
 
         if castlebk == True and f'{fileinputdict[new[0]]}{new[-1]}' == '78' and bkrookmoved == False:
+            # Execute black king-side castling when legal
             checktest(False)
             for a in check_moves:
                 secondValueList.append(a[-1])
@@ -1329,6 +1422,7 @@ def news():
             start()
 
         if castlebq == True and f'{fileinputdict[new[0]]}{new[-1]}' == '38' and bqrookmoved == False:
+            # Execute black queen-side castling when legal
             checktest(False)
             for a in check_moves:
                 secondValueList.append(a[-1])
@@ -1373,6 +1467,7 @@ def news():
 
         if new in enpassant_moves:
 
+            # Resolve en passant capture by removing the passed pawn and placing ours diagonally
             difnew = f'{fileinputdict[new[0]]}{new[1]}'
             board.pop(f'{fileinputdict[piece[0]]}{piece[1]}')
             if x[0] == 'w':
@@ -1414,6 +1509,7 @@ def news():
 
         if new in possible_moves:
 
+            # Default movement path: update board, handle promotion flags, and ensure move is legal
             if ogx == 'wP' and new[-1] == '8' or ogx == 'bP' and new[-1] == '1':
                 promotion()
 
@@ -1451,6 +1547,7 @@ def news():
 
             print(f'The {name} has been moved to {new}')
             with open('GameHistory.txt', 'a') as enter_games:
+                # Record the move in the compact history notation for later replay
                 if prom == True:
                     ogfile = fileinputdict[piece[0]] #First number is file (a file, b file, c file etc)
                     ogrank = piece[-1]
@@ -1466,10 +1563,12 @@ def news():
             start()
                 
         else:
+            # Destination square rejected; ask for another
             print("Not a possible move dummy")
             news()
 
 def login(): #Check the players login
+    # Validate submitted username/password pair and load the player's rating
     global p1ready
     global p2ready
     global word
@@ -1500,6 +1599,7 @@ def login(): #Check the players login
             entry()   #Restart their entry          
 
 def signup(): #Let the player sign up
+    # Create a new account, persisting credentials and initial stat lines
     global p1ready
     global p2ready
     global p1name
@@ -1535,6 +1635,7 @@ def signup(): #Let the player sign up
                 fileop.write (f"\n{newusername},100")
 
 def entry(): # At the start of the game, offers the choice of entry to the player
+    # Loop until the user chooses login or signup for their seat
     New = input(f"{who}: Login or Signup; ").lower() #Inputs whether to login or signup, not case sensitive
     if New == "login": # If they login;
         login() #Direct to login function
@@ -1544,6 +1645,7 @@ def entry(): # At the start of the game, offers the choice of entry to the playe
         entry() #If they do a dumb answer restart this entry
 
 def playgame(): #Starts the P1 and P2 login / signup sequence
+    # Reset the board, fetch both players, then kick off a new game session
     setboard()
     global who
     global p1ready
@@ -1561,6 +1663,7 @@ def playgame(): #Starts the P1 and P2 login / signup sequence
         begin() #Play begin sequence
 
 def want_to_continue():
+    # Common prompt gate used by the tutorial sections to pace the narration
     usercon = input("Press enter to proceed ")
     if "cancel" in usercon:
         choices()
@@ -1568,6 +1671,7 @@ def want_to_continue():
         return True
 
 def learn_pieces(LearnedPiece,Value,PossibleMoves,VisMoves):
+    # Educational helper that displays piece values and example move patterns
     if want_to_continue() == True:
         print(f"The {LearnedPiece} is worth {Value}")
         time.sleep(1)
@@ -1580,6 +1684,7 @@ def learn_pieces(LearnedPiece,Value,PossibleMoves,VisMoves):
         print("    a b c d e f g h")
 
 def check_or_stale(teach,info,matepositions):
+    # Show an explanatory scenario for check or stalemate, depending on `teach`
     if want_to_continue() == True:
         print(info)
         time.sleep(2)
@@ -1591,6 +1696,7 @@ def check_or_stale(teach,info,matepositions):
         time.sleep(2)
 
 def special_moves(special,info,specialpositions1,specialpositions2):
+    # Walk through the narrative and board state change for a special move (castle, en passant, etc.)
     if want_to_continue() == True:
         print(f"This special move is {special}")
         time.sleep(1)
@@ -1611,6 +1717,7 @@ def special_moves(special,info,specialpositions1,specialpositions2):
         print("    a b c d e f g h")
 
 def new_to_chess():
+        # Provide a scripted walkthrough of chess fundamentals for new players
         if want_to_continue() == True:
             time.sleep(1)
             print("Chess is played on an 8x8 grid")
@@ -1735,6 +1842,7 @@ def new_to_website():
                         print("And thats it! Try out the website and play your friends.")
 
 def get_rules():
+    # Prompt the user for which tutorial set to launch
     print("RULES")
     time.sleep(1)
     choice = input("Do you wish to learn;\n1. Rules of chess\n2. Rules of the website\n3. Rules of both\n")
@@ -1756,6 +1864,7 @@ def get_rules():
         get_rules()
 
 def statlook(stat,speaking):
+    # Fetch a particular stat line for the authenticated user and print with a label
     word = uzername #Sets the key word to be found
     with open(stat, 'r') as fp: #Open the designated document
         lines = fp.readlines()
@@ -1769,6 +1878,7 @@ def statlook(stat,speaking):
                 return talk 
 
 def database():
+    # Replay and display a chosen game from the history log for the logged-in user
     setboard()
     print('\n')
     word1 = uzername #Sets the key word to be found
@@ -1782,6 +1892,7 @@ def database():
         lines = fp.readlines()
         for line in lines:
             if line.find(word1) != -1:
+                # Accumulate all games involving the current user
                 gameselect = line.split(';')[0]
                 res = line.split('¿')[-1]
                 nogames += 1
@@ -1797,6 +1908,7 @@ def database():
 
             for line in lines:
                     if line.find(word2) != -1:
+                            # Extract the compact move record for the selected game
                             fakegam = line.split(';')[-1]
                             games = fakegam.split('¿')[0]
                             res = fakegam.split('¿')[-1]
@@ -1809,6 +1921,7 @@ def database():
                                 mylist.append(f'{listpi1[a]}{listpi2[a]}')
                             selormov = 0
                             for simpie in mylist:
+                                    # Reconstruct the board by applying recorded moves in sequence
                                     selormov += 1
                                     if selormov % 2 != 0:
                                         picsim = board[simpie]
@@ -1817,6 +1930,7 @@ def database():
                                     else:
 
                                         if simpie == 'wk':
+                                            # Special tokens represent castling events
                                             board.pop('81')
                                             board['71'] = 'wK'
                                             board['61'] = 'wR'
@@ -1834,16 +1948,19 @@ def database():
                                             board['48'] = 'bR'
 
                                         if (simpie[-1] == 'q' or simpie[-1] == 'r' or simpie[-1] =='b' or simpie[-1] =='n') and (simpie[0] != 'w' or simpie[0] != 'b'):
+                                            # Lowercase markers mean a white pawn promoted on that file
                                             prompic = str(simpie[-1]).upper()
                                             promfil = simpie[0]
                                             board[f'{promfil}8'] = f'w{prompic}'
                                             
                                         if (simpie[-1] == 'Q' or simpie[-1] == 'R' or simpie[-1] =='B' or simpie[-1] =='N') and (simpie[0] != 'w' or simpie[0] != 'b'):
+                                            # Uppercase markers mean a black pawn promotion
                                             prompic = str(simpie[-1]).upper()
                                             promfil = simpie[0]
                                             board[f'{promfil}1'] = f'b{prompic}'
                                         
                                         if simpie[-1] == 'e':
+                                            # Lowercase e/E encode en passant captures in the log
                                             board.pop(f'{simpie[0]}5')
                                             board[f'{simpie[0]}6'] = 'wP'
 
@@ -1859,6 +1976,7 @@ def database():
                             print(res)
 
 def account_view():
+    # Authenticate a user then show aggregate stats, rating, and optionally game history
     global uzername
     nogames = 0
     percentwins = 0
@@ -1877,6 +1995,7 @@ def account_view():
             nogames = int(w)+int(l)+int(d)
             print(f"You have played {nogames}\n")
             time.sleep(1)
+            # Convert raw totals into a simple win percentage
             percentwins = int((int(w) / nogames) * 100)
             print(f"You have won {percentwins}% of your games\n")
             time.sleep(1)
@@ -1893,6 +2012,7 @@ def account_view():
             choices() 
 
 def halloffame():
+    # Rank players by Elo and print the top N entries requested by the user
     deep = input("How many far down the rankings do you wish to go? ")
     print('\n')
     try:
@@ -1908,10 +2028,12 @@ def halloffame():
         for line in content:
             elo = str(line).split(',')[-1]
             elo = int(elo.split('\n')[0])
+            # Gather every player's rating so we can rank them numerically
             halllist.append(elo)
             namlist.append(line)
     halllist.sort() #Sort in ascending order
     halllist.reverse()
+    # Trim the list to the number of ranks requested by the user
     lin = len(halllist)
     while lin > int(deep):
         halllist.pop(-1)
@@ -1925,6 +2047,7 @@ def halloffame():
     choices()
 
 def choices():
+    # Root menu hub that routes the player to gameplay, tutorials, accounts, or rankings
     time.sleep(1)
     choice = input("Would you like to;\n1. Play a game\n2. See the rules\n3. View an account\n4. View the leaderboard\n")
     if choice.lower() == '1':
@@ -1945,6 +2068,7 @@ def choices():
         choices()
 
 def openingAnimation():
+    # Play the ASCII splash screen and a quick move animation before showing the menu
     OFFchess = '████▄ ▄████  ▄████      ▄█▄     ▄  █ ▄███▄     ▄▄▄▄▄    ▄▄▄▄▄ \n█   █ █▀   ▀ █▀   ▀     █▀ ▀▄  █   █ █▀   ▀   █     ▀▄ █     ▀▄ \n█   █ █▀▀    █▀▀        █   ▀  ██▀▀█ ██▄▄   ▄  ▀▀▀▀▄ ▄  ▀▀▀▀▄   \n▀████ █      █          █▄  ▄▀ █   █ █▄   ▄▀ ▀▄▄▄▄▀   ▀▄▄▄▄▀    \n       █      █         ▀███▀     █  ▀███▀                      \n        ▀      ▀                 ▀                              \n                                                                '
     time.sleep(2)
     for i in range(9):
@@ -1981,6 +2105,7 @@ def openingAnimation():
     choices()
 
 def begin():
+    # Final pre-game setup: show board, log matchup, and start the move loop
     time.sleep(1)
     print("Get ready...")
     time.sleep(1)
@@ -1997,6 +2122,7 @@ global bqrookmoved
 global wkrookmoved
 global wqrookmoved
 global turns
+# Track castling eligibility and turn order flags across the session
 bkingmoved = False
 wkingmoved = False
 wkrookmoved = False
@@ -2005,4 +2131,5 @@ bkrookmoved = False
 bqrookmoved = False
 turns = 0
 setboard()
+# Show the splash screen and launch the interactive menu loop
 openingAnimation()
